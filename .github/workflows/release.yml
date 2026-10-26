@@ -1,0 +1,72 @@
+name: Build & Release
+
+# Every push/PR runs the tests. Pushing a tag like `v1.0.0` also builds the DMG
+# and attaches it to a GitHub Release that anyone can download.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    # Job-level so the signing step's `if:` can see whether the secret exists.
+    env:
+      MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Test
+        run: swift test
+
+      - name: Set version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      # Optional: Developer ID signing + notarization. Add these repository secrets to enable:
+      #   MACOS_CERT_P12 (base64 .p12), MACOS_CERT_PASSWORD, MACOS_SIGN_IDENTITY,
+      #   APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD
+      - name: Import signing certificate
+        if: env.MACOS_CERT_P12 != ''
+        env:
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/build.keychain"
+          echo "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p ci "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p ci "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k ci "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain
+          xcrun notarytool store-credentials ci --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
+          echo "SIGN_IDENTITY=$MACOS_SIGN_IDENTITY" >> "$GITHUB_ENV"
+          echo "NOTARY_PROFILE=ci" >> "$GITHUB_ENV"
+
+      - name: Build app
+        run: scripts/build-app.sh
+
+      - name: Package DMG
+        run: scripts/make-dmg.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CommandCache-dmg
+          path: build/*.dmg
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/*.dmg
+          generate_release_notes: true
