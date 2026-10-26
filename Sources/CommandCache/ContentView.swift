@@ -54,13 +54,19 @@ struct ContentView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Picker("Show", selection: $filter) {
-                ForEach(CommandFilter.allCases) { option in
-                    Label(option.title, systemImage: option.systemImage).tag(option)
+            // A pull-down, not a pop-up: pop-ups line the selected item up with the button,
+            // which pushes earlier items off the top of the screen this close to the menu bar.
+            Menu {
+                Picker("Show", selection: $filter) {
+                    ForEach(CommandFilter.allCases) { option in
+                        Label(option.title, systemImage: option.systemImage).tag(option)
+                    }
                 }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            } label: {
+                Label(filter.title, systemImage: filter.systemImage)
             }
-            .pickerStyle(.menu)
-            .labelsHidden()
             .fixedSize()
 
             Spacer()
