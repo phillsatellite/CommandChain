@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import CommandCacheCore
+@testable import CommandChainCore
 
 @Suite struct CommandHistoryTests {
     @Test func recentKeepsAtMostThirty() {
@@ -154,5 +154,29 @@ import Testing
         #expect(integration.isInstalled)
         try integration.uninstall()
         #expect(try String(contentsOf: home.appendingPathComponent(".zshrc"), encoding: .utf8) == original + "\n")
+    }
+
+    @Test func upgradesBlockFromBeforeRename() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        let zshrc = home.appendingPathComponent(".zshrc")
+        try """
+        alias ll='ls -la'
+
+        # >>> CommandCache >>>
+        [ -f "$HOME/Library/Application Support/CommandCache/hook.sh" ] && . "$HOME/Library/Application Support/CommandCache/hook.sh"
+        # <<< CommandCache <<<
+
+        """.write(to: zshrc, atomically: true, encoding: .utf8)
+        let integration = ShellIntegration(paths: AppPaths(directory: home.appendingPathComponent("support")), homeDirectory: home)
+        try integration.upgradeLegacyInstall()
+        let upgraded = try String(contentsOf: zshrc, encoding: .utf8)
+        #expect(!upgraded.contains("CommandCache"))
+        #expect(upgraded.hasPrefix("alias ll='ls -la'\n"))
+        #expect(upgraded.components(separatedBy: ShellIntegration.beginMarker).count == 2)
+        #expect(integration.isInstalled)
+        // Nothing to upgrade the second time.
+        try integration.upgradeLegacyInstall()
+        #expect(try String(contentsOf: zshrc, encoding: .utf8) == upgraded)
     }
 }

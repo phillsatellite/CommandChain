@@ -1,5 +1,5 @@
 import AppKit
-import CommandCacheCore
+import CommandChainCore
 import SwiftUI
 
 struct ContentView: View {

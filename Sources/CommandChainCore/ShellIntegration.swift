@@ -3,8 +3,11 @@ import Foundation
 /// Installs a tiny zsh/bash hook that appends every command you run to `inbox.log`.
 /// The app drains that file, so the shell never waits on the app (and works when it isn't running).
 public struct ShellIntegration {
-    public static let beginMarker = "# >>> CommandCache >>>"
-    public static let endMarker = "# <<< CommandCache <<<"
+    public static let beginMarker = "# >>> Command Chain >>>"
+    public static let endMarker = "# <<< Command Chain <<<"
+    /// Markers written by builds from before the app was renamed.
+    static let legacyBeginMarker = "# >>> CommandCache >>>"
+    static let legacyEndMarker = "# <<< CommandCache <<<"
 
     public let paths: AppPaths
     public let homeDirectory: URL
@@ -56,6 +59,19 @@ public struct ShellIntegration {
         }
     }
 
+    /// Swaps a block written before the rename for the current one, so capture keeps working.
+    public func upgradeLegacyInstall() throws {
+        var found = false
+        for file in startupFiles {
+            guard let contents = try? String(contentsOf: file, encoding: .utf8),
+                  contents.contains(Self.legacyBeginMarker) else { continue }
+            let cleaned = Self.removingBlock(from: contents, begin: Self.legacyBeginMarker, end: Self.legacyEndMarker)
+            try Data(cleaned.utf8).write(to: file)
+            found = true
+        }
+        if found { try install() }
+    }
+
     var sourceBlock: String {
         let path = paths.hookScript.path
         let home = homeDirectory.path
@@ -67,12 +83,12 @@ public struct ShellIntegration {
         """
     }
 
-    static func removingBlock(from contents: String) -> String {
+    static func removingBlock(from contents: String, begin: String = beginMarker, end: String = endMarker) -> String {
         var lines: [Substring] = []
         var skipping = false
         for line in contents.split(separator: "\n", omittingEmptySubsequences: false) {
-            if line == beginMarker { skipping = true; continue }
-            if skipping { if line == endMarker { skipping = false }; continue }
+            if line == begin { skipping = true; continue }
+            if skipping { if line == end { skipping = false }; continue }
             lines.append(line)
         }
         // Drop the blank line install() added before the block.
@@ -83,50 +99,50 @@ public struct ShellIntegration {
 
     /// Lines are escaped so one command == one line: `\` -> `\\`, tab -> `\t`, newline -> `\n`.
     public static let hookScript = #"""
-    # CommandCache shell integration. Managed by CommandCache.app — edits are overwritten on launch.
-    # Start a command with a space to keep it out of CommandCache.
+    # Command Chain shell integration. Managed by Command Chain.app — edits are overwritten on launch.
+    # Start a command with a space to keep it out of Command Chain.
 
-    _commandcache_dir="${COMMANDCACHE_HOME:-$HOME/Library/Application Support/CommandCache}"
+    _commandchain_dir="${COMMANDCHAIN_HOME:-$HOME/Library/Application Support/CommandChain}"
 
-    _commandcache_write() {
-      [ -d "$_commandcache_dir" ] || return 0
-      [ -e "$_commandcache_dir/paused" ] && return 0
+    _commandchain_write() {
+      [ -d "$_commandchain_dir" ] || return 0
+      [ -e "$_commandchain_dir/paused" ] && return 0
       local cmd="$1"
       case "$cmd" in ' '*) return 0 ;; esac
       [ -z "${cmd//[[:space:]]/}" ] && return 0
       cmd="${cmd//\\/\\\\}"
       cmd="${cmd//$'\t'/\\t}"
       cmd="${cmd//$'\n'/\\n}"
-      printf '%s\n' "$cmd" >> "$_commandcache_dir/inbox.log" 2>/dev/null
+      printf '%s\n' "$cmd" >> "$_commandchain_dir/inbox.log" 2>/dev/null
       return 0
     }
 
     if [ -n "$ZSH_VERSION" ]; then
       autoload -Uz add-zsh-hook
-      _commandcache_preexec() { _commandcache_write "$1"; }
-      add-zsh-hook preexec _commandcache_preexec
+      _commandchain_preexec() { _commandchain_write "$1"; }
+      add-zsh-hook preexec _commandchain_preexec
     elif [ -n "$BASH_VERSION" ]; then
       # bash has no preexec, so read the newest history entry each time the prompt is drawn.
       # The first prompt only records a baseline, so old history isn't re-logged on shell start.
-      _commandcache_last=""
-      _commandcache_ready=""
-      _commandcache_prompt() {
+      _commandchain_last=""
+      _commandchain_ready=""
+      _commandchain_prompt() {
         local entry num
         entry="$(HISTTIMEFORMAT= builtin history 1)"
         entry="${entry#"${entry%%[! ]*}"}"
         num="${entry%%[!0-9]*}"
-        if [ -z "$_commandcache_ready" ]; then
-          _commandcache_ready=1; _commandcache_last="$num"; return 0
+        if [ -z "$_commandchain_ready" ]; then
+          _commandchain_ready=1; _commandchain_last="$num"; return 0
         fi
-        [ -z "$num" ] || [ "$num" = "$_commandcache_last" ] && return 0
-        _commandcache_last="$num"
+        [ -z "$num" ] || [ "$num" = "$_commandchain_last" ] && return 0
+        _commandchain_last="$num"
         entry="${entry#"$num"}"; entry="${entry#\*}"
         entry="${entry#"${entry%%[! ]*}"}"
-        _commandcache_write "$entry"
+        _commandchain_write "$entry"
       }
       case "$PROMPT_COMMAND" in
-        *_commandcache_prompt*) ;;
-        *) PROMPT_COMMAND="_commandcache_prompt${PROMPT_COMMAND:+; $PROMPT_COMMAND}" ;;
+        *_commandchain_prompt*) ;;
+        *) PROMPT_COMMAND="_commandchain_prompt${PROMPT_COMMAND:+; $PROMPT_COMMAND}" ;;
       esac
     fi
     """#

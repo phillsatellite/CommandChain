@@ -2,7 +2,7 @@
 import AppKit
 import SwiftUI
 
-/// Debug builds only: `CommandCache --snapshot out.png [light|dark]` renders the popover to a PNG and exits.
+/// Debug builds only: `CommandChain --snapshot out.png [light|dark]` renders the popover to a PNG and exits.
 /// Handy for checking layout without clicking the menu bar.
 enum DebugSnapshot {
     @MainActor

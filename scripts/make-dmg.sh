@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Packages build/CommandCache.app into build/CommandCache-<version>.dmg (drag-to-Applications).
+# Packages "build/Command Chain.app" into build/CommandChain-<version>.dmg (drag-to-Applications).
 #
 # Notarization (optional): set NOTARY_PROFILE to a keychain profile created with
 #   xcrun notarytool store-credentials <profile> --apple-id … --team-id … --password <app-specific-password>
@@ -8,8 +8,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 VERSION="${VERSION:-$(tr -d '[:space:]' < VERSION)}"
-APP="build/CommandCache.app"
-DMG="build/CommandCache-$VERSION.dmg"
+APP="build/Command Chain.app"
+DMG="build/CommandChain-$VERSION.dmg"
 [[ -d "$APP" ]] || { echo "Run scripts/build-app.sh first" >&2; exit 1; }
 
 STAGING="$(mktemp -d)"
@@ -18,7 +18,7 @@ cp -R "$APP" "$STAGING/"
 ln -s /Applications "$STAGING/Applications"
 
 rm -f "$DMG"
-hdiutil create -volname "CommandCache" -srcfolder "$STAGING" -ov -format UDZO -fs HFS+ "$DMG" >/dev/null
+hdiutil create -volname "Command Chain" -srcfolder "$STAGING" -ov -format UDZO -fs HFS+ "$DMG" >/dev/null
 
 if [[ -n "${SIGN_IDENTITY:-}" && "$SIGN_IDENTITY" != "-" ]]; then
   codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG"

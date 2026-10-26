@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 @main
-struct CommandCacheApp: App {
+struct CommandChainApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var store = CommandStore()
 

@@ -1,4 +1,4 @@
-# CommandCache
+# Command Chain
 
 A macOS menu bar app that remembers the commands you run in Terminal, so you can find and copy them again in one click.
 
@@ -13,30 +13,30 @@ Requires macOS 13 Ventura or later. Universal build (Apple silicon + Intel).
 
 ## Install
 
-1. Download `CommandCache-x.y.z.dmg` from the [Releases](../../releases) page.
-2. Open it and drag **CommandCache** into **Applications**.
+1. Download `CommandChain-x.y.z.dmg` from the [Releases](https://github.com/phillsatellite/CommandChain/releases) page.
+2. Open it and drag **Command Chain** into **Applications**.
 3. Launch it. A terminal icon appears in the menu bar.
 4. Click it, then click **Enable** to turn on terminal capture. Open a new Terminal window and your commands will start showing up.
 
-> **"CommandCache can't be opened because Apple cannot check it for malicious software"**
+> **"Command Chain can't be opened because Apple cannot check it for malicious software"**
 > Release builds are unsigned unless the project has an Apple Developer ID set up (see below).
 > To open it the first time: try to open the app, then go to **System Settings → Privacy & Security**, scroll down, and click **Open Anyway**.
-> Or run `xattr -dr com.apple.quarantine /Applications/CommandCache.app`.
+> Or run `xattr -dr com.apple.quarantine "/Applications/Command Chain.app"`.
 
 ## How capture works
 
 **Enable** adds this block to `~/.zshrc` (and `~/.bash_profile` / `~/.bashrc` if you have them):
 
 ```sh
-# >>> CommandCache >>>
-[ -f "$HOME/Library/Application Support/CommandCache/hook.sh" ] && . "$HOME/Library/Application Support/CommandCache/hook.sh"
-# <<< CommandCache <<<
+# >>> Command Chain >>>
+[ -f "$HOME/Library/Application Support/CommandChain/hook.sh" ] && . "$HOME/Library/Application Support/CommandChain/hook.sh"
+# <<< Command Chain <<<
 ```
 
-The hook appends each command to `~/Library/Application Support/CommandCache/inbox.log`, and the app picks those up every second. The shell never waits on the app, and commands run while the app is closed are imported the next time it launches. If you delete the app, the `[ -f … ]` guard means your shell keeps working.
+The hook appends each command to `~/Library/Application Support/CommandChain/inbox.log`, and the app picks those up every second. The shell never waits on the app, and commands run while the app is closed are imported the next time it launches. If you delete the app, the `[ -f … ]` guard means your shell keeps working.
 
-- **Privacy:** start a command with a space to keep it out of CommandCache. You can also pause capture from the ⚙︎ menu, or right-click a command → *Remove from History*.
-- History is stored locally in `~/Library/Application Support/CommandCache/store.json`. Nothing leaves your Mac.
+- **Privacy:** start a command with a space to keep it out of Command Chain. You can also pause capture from the ⚙︎ menu, or right-click a command → *Remove from History*.
+- History is stored locally in `~/Library/Application Support/CommandChain/store.json`. Nothing leaves your Mac.
 - ⚙︎ → **Import Existing Shell History** seeds Most Used and the platform lists from `~/.zsh_history` / `~/.bash_history`.
 - ⚙︎ → **Remove Shell Integration…** removes the block again.
 
@@ -45,20 +45,20 @@ The hook appends each command to `~/Library/Application Support/CommandCache/inb
 Requires Xcode 15+ or the Swift 5.9+ Command Line Tools.
 
 ```sh
-swift run CommandCache          # run from source (menu bar icon appears)
+swift run CommandChain          # run from source (menu bar icon appears)
 scripts/test.sh                 # unit tests
-scripts/build-app.sh            # → build/CommandCache.app (universal, ad-hoc signed)
-scripts/make-dmg.sh             # → build/CommandCache-<version>.dmg
+scripts/build-app.sh            # → "build/Command Chain.app" (universal, ad-hoc signed)
+scripts/make-dmg.sh             # → build/CommandChain-<version>.dmg
 ```
 
-Set `COMMANDCACHE_HOME=/some/dir` to point the app and hook at a throwaway data folder while developing.
+Set `COMMANDCHAIN_HOME=/some/dir` to point the app and hook at a throwaway data folder while developing.
 
 Layout:
 
 | Path | What |
 | --- | --- |
-| `Sources/CommandCacheCore` | History rules (Recent limit, dedupe, Most Used, favorites), category detection, shell hook, history import. No UI, fully unit tested. |
-| `Sources/CommandCache` | The SwiftUI menu bar app. |
+| `Sources/CommandChainCore` | History rules (Recent limit, dedupe, Most Used, favorites), category detection, shell hook, history import. No UI, fully unit tested. |
+| `Sources/CommandChain` | The SwiftUI menu bar app. |
 | `scripts/` | Build, icon, DMG and test scripts. |
 | `.github/workflows/release.yml` | Tests on every push; builds and publishes the DMG for `v*` tags. |
 

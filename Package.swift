@@ -2,16 +2,16 @@
 import PackageDescription
 
 let package = Package(
-    name: "CommandCache",
+    name: "CommandChain",
     platforms: [.macOS(.v13)],
     products: [
-        .executable(name: "CommandCache", targets: ["CommandCache"]),
+        .executable(name: "CommandChain", targets: ["CommandChain"]),
     ],
     targets: [
         // Pure logic: history rules, categories, shell hook, inbox parsing. No UI.
-        .target(name: "CommandCacheCore"),
+        .target(name: "CommandChainCore"),
         // The menu bar app (SwiftUI).
-        .executableTarget(name: "CommandCache", dependencies: ["CommandCacheCore"]),
-        .testTarget(name: "CommandCacheCoreTests", dependencies: ["CommandCacheCore"]),
+        .executableTarget(name: "CommandChain", dependencies: ["CommandChainCore"]),
+        .testTarget(name: "CommandChainCoreTests", dependencies: ["CommandChainCore"]),
     ]
 )

@@ -35,7 +35,7 @@ struct FooterBar: View {
 
                 Divider()
 
-                Button("About CommandCache") {
+                Button("About Command Chain") {
                     NSApp.activate(ignoringOtherApps: true)
                     NSApp.orderFrontStandardAboutPanel(nil)
                 }
@@ -91,7 +91,7 @@ struct FooterBar: View {
     private func confirmUninstall() {
         guard confirm(
             title: "Remove Shell Integration?",
-            message: "CommandCache will remove its line from your shell profile and stop recording new commands. Your saved history stays.",
+            message: "Command Chain will remove its line from your shell profile and stop recording new commands. Your saved history stays.",
             action: "Remove"
         ) else { return }
         store.uninstallShellIntegration()

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds build/CommandCache.app as a universal (Apple silicon + Intel) binary.
+# Builds "build/Command Chain.app" as a universal (Apple silicon + Intel) binary.
 #
 # Signing: by default the app is ad-hoc signed, which runs fine on the machine that built it
 # and on others after the user approves it once (see README). To ship a Developer ID–signed
@@ -10,19 +10,19 @@ cd "$(dirname "$0")/.."
 VERSION="${VERSION:-$(tr -d '[:space:]' < VERSION)}"
 BUILD_NUMBER="${BUILD_NUMBER:-$(git rev-list --count HEAD 2>/dev/null || echo 1)}"
 SIGN_IDENTITY="${SIGN_IDENTITY:--}"
-APP="build/CommandCache.app"
+APP="build/Command Chain.app"
 
 rm -rf build
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 echo "▸ Compiling (arm64 + x86_64)"
 for arch in arm64 x86_64; do
-  swift build -c release --product CommandCache --triple "$arch-apple-macosx13.0"
+  swift build -c release --product CommandChain --triple "$arch-apple-macosx13.0"
 done
 lipo -create \
-  .build/arm64-apple-macosx/release/CommandCache \
-  .build/x86_64-apple-macosx/release/CommandCache \
-  -output "$APP/Contents/MacOS/CommandCache"
+  .build/arm64-apple-macosx/release/CommandChain \
+  .build/x86_64-apple-macosx/release/CommandChain \
+  -output "$APP/Contents/MacOS/CommandChain"
 
 echo "▸ Assembling bundle"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD_NUMBER/" Resources/Info.plist > "$APP/Contents/Info.plist"

@@ -6,7 +6,7 @@ public struct CommandStats: Codable, Equatable {
     public var lastUsed: Date
 }
 
-/// Everything CommandCache remembers. Value type so the rules are easy to test.
+/// Everything Command Chain remembers. Value type so the rules are easy to test.
 public struct CommandHistory: Codable, Equatable {
     /// The Recent list never holds more than this many commands.
     public static let recentLimit = 30

@@ -1,5 +1,5 @@
 import AppKit
-import CommandCacheCore
+import CommandChainCore
 import ServiceManagement
 
 /// Owns the history, polls the shell inbox and persists to disk.
@@ -20,6 +20,11 @@ final class CommandStore: ObservableObject {
         self.paths = paths
         inbox = CommandInbox(paths: paths)
         integration = ShellIntegration(paths: paths)
+        // Only for the real data folder, never a COMMANDCHAIN_HOME test folder.
+        if paths.directory == AppPaths.defaultDirectory {
+            AppPaths.migrateFromCommandCache()
+            try? integration.upgradeLegacyInstall()
+        }
         history = Self.load(from: paths.store) ?? CommandHistory()
         shellIntegrationInstalled = integration.isInstalled
         isPaused = FileManager.default.fileExists(atPath: paths.pauseFlag.path)
@@ -117,7 +122,7 @@ final class CommandStore: ObservableObject {
         do {
             if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
         } catch {
-            lastError = "Couldn't change Launch at Login: \(error.localizedDescription). Move CommandCache to Applications and try again."
+            lastError = "Couldn't change Launch at Login: \(error.localizedDescription). Move Command Chain to Applications and try again."
         }
         objectWillChange.send()
     }
@@ -152,7 +157,7 @@ final class CommandStore: ObservableObject {
                 let data = try JSONEncoder().encode(snapshot)
                 try data.write(to: url, options: .atomic)
             } catch {
-                NSLog("CommandCache: failed to save history: \(error)")
+                NSLog("Command Chain: failed to save history: \(error)")
             }
         }
         saveWorkItem = work
