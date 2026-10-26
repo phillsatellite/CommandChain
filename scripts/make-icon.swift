@@ -1,4 +1,4 @@
-// Renders the 1024px app icon: a macOS-style squircle with a terminal prompt.
+// Renders the 1024px app icon: a macOS-style terminal window with a prompt and two chain links.
 // Usage: swift scripts/make-icon.swift <output.png>
 import AppKit
 
@@ -42,36 +42,69 @@ for (i, color) in [NSColor.systemRed, .systemYellow, .systemGreen].enumerated() 
 }
 NSGraphicsContext.restoreGraphicsState()
 
-// Prompt ">" and stacked history lines.
+let green = NSColor(calibratedRed: 0.35, green: 0.85, blue: 0.55, alpha: 1)
+
+// Prompt ">" in the empty top-left corner.
 let chevron = NSBezierPath()
-chevron.lineWidth = 46
+chevron.lineWidth = 40
 chevron.lineCapStyle = .round
 chevron.lineJoinStyle = .round
-chevron.move(to: NSPoint(x: 230, y: 640))
-chevron.line(to: NSPoint(x: 340, y: 560))
-chevron.line(to: NSPoint(x: 230, y: 480))
-NSColor(calibratedRed: 0.35, green: 0.85, blue: 0.55, alpha: 1).setStroke()
+chevron.move(to: NSPoint(x: 205, y: 705))
+chevron.line(to: NSPoint(x: 290, y: 645))
+chevron.line(to: NSPoint(x: 205, y: 585))
+green.setStroke()
 chevron.stroke()
 
-for (i, width) in [360.0, 280.0, 220.0].enumerated() {
-    let y = 545 - CGFloat(i) * 120
-    let alpha = 1.0 - Double(i) * 0.3
-    NSColor.white.withAlphaComponent(alpha).setFill()
-    NSBezierPath(roundedRect: NSRect(x: 400, y: y, width: width, height: 36), xRadius: 18, yRadius: 18).fill()
+// Two interlocking chain links on a diagonal. Each link is a stroked capsule; the
+// second crossing is redrawn so link A passes over B at one point and under it at the other.
+let ctx = NSGraphicsContext.current!.cgContext
+let chainCenter = CGPoint(x: 545, y: 420)
+let angle = 35 * CGFloat.pi / 180
+let linkLength: CGFloat = 300, linkHeight: CGFloat = 150, spacing: CGFloat = 200, stroke: CGFloat = 52
+let gapColor = NSColor(calibratedRed: 0.11, green: 0.12, blue: 0.15, alpha: 1).cgColor
+
+func chainTransform(_ offset: CGFloat) -> CGAffineTransform {
+    CGAffineTransform(translationX: chainCenter.x, y: chainCenter.y).rotated(by: angle).translatedBy(x: offset, y: 0)
 }
 
-// Star = favorites.
-let star = NSBezierPath()
-let center = NSPoint(x: 740, y: 255)
-for i in 0..<10 {
-    let radius: CGFloat = i % 2 == 0 ? 78 : 34
-    let angle = CGFloat(i) * .pi / 5 + .pi / 2
-    let point = NSPoint(x: center.x + radius * cos(angle), y: center.y + radius * sin(angle))
-    i == 0 ? star.move(to: point) : star.line(to: point)
+func linkRing(at offset: CGFloat) -> CGPath {
+    var transform = chainTransform(offset)
+    let rect = CGRect(x: -linkLength / 2, y: -linkHeight / 2, width: linkLength, height: linkHeight)
+    let capsule = CGPath(roundedRect: rect, cornerWidth: linkHeight / 2, cornerHeight: linkHeight / 2, transform: &transform)
+    return capsule.copy(strokingWithWidth: stroke, lineCap: .round, lineJoin: .round, miterLimit: 10)
 }
-star.close()
-NSColor.systemYellow.setFill()
-star.fill()
+
+func drawLink(_ ring: CGPath, colors: [NSColor], clip: CGPath? = nil) {
+    ctx.saveGState()
+    if let clip { ctx.addPath(clip); ctx.clip() }
+    // One layer per link, so a partial redraw blends in without a seam at the clip edge.
+    ctx.beginTransparencyLayer(auxiliaryInfo: nil)
+    // A dark outline cuts a gap into whatever link is underneath, which sells the overlap.
+    ctx.addPath(ring)
+    ctx.setStrokeColor(gapColor)
+    ctx.setLineWidth(22)
+    ctx.strokePath()
+    ctx.saveGState()
+    ctx.addPath(ring)
+    ctx.clip()
+    let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors.map(\.cgColor) as CFArray, locations: nil)!
+    let box = ring.boundingBox
+    ctx.drawLinearGradient(gradient, start: CGPoint(x: box.minX, y: box.maxY), end: CGPoint(x: box.maxX, y: box.minY), options: [])
+    ctx.restoreGState()
+    ctx.endTransparencyLayer()
+    ctx.restoreGState()
+}
+
+let linkA = linkRing(at: -spacing / 2)
+let linkB = linkRing(at: spacing / 2)
+let silver = [NSColor.white, NSColor(calibratedWhite: 0.78, alpha: 1)]
+let greens = [NSColor(calibratedRed: 0.55, green: 0.95, blue: 0.70, alpha: 1), NSColor(calibratedRed: 0.20, green: 0.70, blue: 0.42, alpha: 1)]
+
+drawLink(linkA, colors: silver)
+drawLink(linkB, colors: greens)
+// Redraw A over B on the upper side of the chain's axis only.
+var upper = chainTransform(0)
+drawLink(linkA, colors: silver, clip: CGPath(rect: CGRect(x: -600, y: 0, width: 1200, height: 600), transform: &upper))
 
 NSGraphicsContext.restoreGraphicsState()
 try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: output))
