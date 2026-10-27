@@ -19,6 +19,16 @@ struct FooterBar: View {
                     set: { store.setPasteOnClick($0) }
                 ))
 
+                Picker("Terminal Button Opens", selection: Binding(
+                    get: { store.newTerminalKind },
+                    set: { store.setNewTerminalKind($0) }
+                )) {
+                    ForEach(NewTerminalKind.allCases) { kind in
+                        Text("New \(kind.title)").tag(kind)
+                    }
+                }
+                .pickerStyle(.menu)
+
                 Toggle("Launch at Login", isOn: Binding(
                     get: { store.launchesAtLogin },
                     set: { store.setLaunchesAtLogin($0) }

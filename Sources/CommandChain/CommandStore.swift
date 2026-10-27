@@ -13,11 +13,19 @@ final class CommandStore: ObservableObject {
     @Published private(set) var pasteOnClick: Bool
     /// Paste on click is on but Accessibility access hasn't been granted yet.
     @Published var needsAccessibility = false
+    /// What the header's terminal button opens.
+    @Published private(set) var newTerminalKind: NewTerminalKind
+    /// The window or tab picked in the panel; ▶ and click-to-paste go there. Nil means automatic:
+    /// ▶ goes to the terminal window you used last and click-to-paste to the app you were in.
+    @Published private(set) var pinnedTarget: TerminalTarget?
+    /// Where ▶ sends commands right now, shown above the list. Refreshed while the panel is open.
+    @Published private(set) var currentTarget: TerminalTarget?
 
     let paths: AppPaths
     private let inbox: CommandInbox
     private let integration: ShellIntegration
     private let paster = TerminalPaster()
+    private var categoryCache: [String: [CommandCategory]] = [:]
     private var pollTimer: Timer?
     private var saveWorkItem: DispatchWorkItem?
 
@@ -34,11 +42,19 @@ final class CommandStore: ObservableObject {
         shellIntegrationInstalled = integration.isInstalled
         isPaused = FileManager.default.fileExists(atPath: paths.pauseFlag.path)
         pasteOnClick = UserDefaults.standard.bool(forKey: Self.pasteOnClickKey)
+        newTerminalKind = UserDefaults.standard.string(forKey: Self.newTerminalKindKey).flatMap(NewTerminalKind.init) ?? .window
 
         try? integration.writeHookScript()
         ingest()
+        refreshTarget()
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.ingest() }
+            Task { @MainActor in
+                self?.ingest()
+                // Hides the Accessibility banner as soon as access is granted in System Settings.
+                self?.refreshAccessibilityStatus()
+                // Keeps the window name above the list current, but only while the panel is open.
+                if NSApp.keyWindow != nil { self?.refreshTarget() }
+            }
         }
         RunLoop.main.add(timer, forMode: .common)
         pollTimer = timer
@@ -46,15 +62,32 @@ final class CommandStore: ObservableObject {
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.flush() }
         }
+        // The panel becoming key means it just opened.
+        NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshTarget() }
+        }
     }
 
     // MARK: Reading
 
     func commands(for filter: CommandFilter, matching query: String) -> [String] {
-        let all = history.commands(for: filter)
+        let all = history.commands(for: filter, categorize: categories(of:))
         let query = query.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else { return all }
         return all.filter { $0.localizedCaseInsensitiveContains(query) }
+    }
+
+    /// Tabs to show after Recent, Most Used and Favorites: only categories you have commands in.
+    var categoriesInUse: [CommandCategory] {
+        history.categoriesInUse(categorize: categories(of:))
+    }
+
+    /// Cached, since a command's categories never change and the view asks on every redraw.
+    func categories(of command: String) -> [CommandCategory] {
+        if let cached = categoryCache[command] { return cached }
+        let found = CommandCategory.matching(command)
+        categoryCache[command] = found
+        return found
     }
 
     func isFavorite(_ command: String) -> Bool { history.isFavorite(command) }
@@ -73,18 +106,108 @@ final class CommandStore: ObservableObject {
     @discardableResult
     func copyOrPaste(_ command: String) -> Bool {
         copy(command)
-        guard pasteOnClick else { return false }
-        guard TerminalPaster.hasPermission else {
-            needsAccessibility = true
+        guard pasteOnClick, hasAccessibility(), let destination = destination(otherwise: .previousApp) else { return false }
+        return paster.pasteClipboard(into: destination)
+    }
+
+    /// The play button: pastes into the picked or last terminal window and presses Return.
+    /// Returns true if it ran; otherwise the command is only copied and a banner explains why.
+    @discardableResult
+    func run(_ command: String) -> Bool {
+        copy(command)
+        guard hasAccessibility(), let destination = destination(otherwise: .terminal) else { return false }
+        guard paster.app(for: destination) != nil else {
+            lastError = "Open Terminal, iTerm or another terminal app first, then press play. The command is on your clipboard."
             return false
         }
-        needsAccessibility = false
-        return paster.pasteClipboard()
+        return paster.pasteClipboard(into: destination, pressReturn: true)
+    }
+
+    /// The picked window if there is one, else `fallback`. Nil if the picked window has closed,
+    /// so a command never lands in a window you didn't choose.
+    private func destination(otherwise fallback: TerminalPaster.Destination) -> TerminalPaster.Destination? {
+        guard let pinned = pinnedTarget else { return fallback }
+        guard let current = paster.resolve(pinned) else {
+            pin(nil)
+            lastError = "The window you picked has closed, so nothing was sent. The command is on your clipboard."
+            return nil
+        }
+        return .target(current)
     }
 
     /// Name of the app a click would paste into, e.g. "Terminal".
     var pasteTargetName: String? {
-        paster.targetApp?.localizedName
+        pinnedTarget?.app.localizedName ?? paster.previousApp?.localizedName
+    }
+
+    /// Name of the terminal the play button would run in.
+    var runTargetName: String? {
+        pinnedTarget?.app.localizedName ?? paster.app(for: .terminal)?.localizedName
+    }
+
+    /// What the bar above the list shows: the window ▶ goes to, or just the terminal's name
+    /// when windows can't be read yet (no Accessibility access).
+    var currentTargetName: String? {
+        currentTarget?.displayName ?? paster.app(for: .terminal)?.localizedName
+    }
+
+    /// Every open terminal window and tab, read fresh for the picker menu.
+    func terminalTargets() -> [TerminalTarget] {
+        TerminalPaster.hasPermission ? paster.allTargets() : []
+    }
+
+    /// Sends ▶ and click-to-paste to `target` from now on, or back to automatic with nil.
+    func pin(_ target: TerminalTarget?) {
+        pinnedTarget = target
+        refreshTarget()
+    }
+
+    func refreshTarget() {
+        guard TerminalPaster.hasPermission else { return show(nil) }
+        guard let pinned = pinnedTarget else { return show(paster.frontTarget()) }
+        guard let current = paster.resolve(pinned) else {
+            pinnedTarget = nil
+            lastError = "The window you picked has closed. Commands go to the terminal window you used last again."
+            return show(paster.frontTarget())
+        }
+        // It's a different element if the window has since gained tabs.
+        if current != pinned { pinnedTarget = current }
+        show(current)
+    }
+
+    /// Only publishes real changes, so the once-a-second refresh doesn't redraw the panel for nothing.
+    private func show(_ target: TerminalTarget?) {
+        if target != currentTarget || target?.displayName != currentTarget?.displayName {
+            currentTarget = target
+        }
+    }
+
+    /// The header's terminal button: a new window or tab (`kind`, or the one picked in settings).
+    /// Returns false if it couldn't, e.g. Accessibility access is missing.
+    @discardableResult
+    func openNewTerminal(_ kind: NewTerminalKind? = nil) -> Bool {
+        // Launching a terminal that isn't running needs no access; pressing ⌘N or ⌘T in one does.
+        if paster.app(for: .terminal) != nil, !hasAccessibility() { return false }
+        return paster.openNewTerminal(kind ?? newTerminalKind)
+    }
+
+    /// The terminal the terminal button opens, even if it isn't running.
+    var newTerminalName: String { paster.terminalName }
+
+    func setNewTerminalKind(_ kind: NewTerminalKind) {
+        newTerminalKind = kind
+        UserDefaults.standard.set(kind.rawValue, forKey: Self.newTerminalKindKey)
+    }
+
+    /// Shows the Accessibility banner (and the system prompt, the first time) when access is missing.
+    private func hasAccessibility() -> Bool {
+        if TerminalPaster.hasPermission {
+            needsAccessibility = false
+            return true
+        }
+        if !needsAccessibility { TerminalPaster.requestPermission() }
+        needsAccessibility = true
+        return false
     }
 
     func setPasteOnClick(_ enabled: Bool) {
@@ -95,10 +218,12 @@ final class CommandStore: ObservableObject {
     }
 
     func refreshAccessibilityStatus() {
-        if TerminalPaster.hasPermission || !pasteOnClick { needsAccessibility = false }
+        guard needsAccessibility else { return }
+        if TerminalPaster.hasPermission { needsAccessibility = false }
     }
 
     private static let pasteOnClickKey = "pasteOnClick"
+    private static let newTerminalKindKey = "newTerminalKind"
 
     func toggleFavorite(_ command: String) { mutate { $0.toggleFavorite(command) } }
     func addFavorite(_ command: String) { mutate { $0.addFavorite(command) } }

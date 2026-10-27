@@ -4,11 +4,23 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var store: CommandStore
-    @AppStorage("selectedFilter") private var filter: CommandFilter = .recent
+    @AppStorage("selectedFilter") private var storedFilter: CommandFilter = .recent
     @State private var query = ""
     @State private var isAddingFavorite = false
     @State private var newFavorite = ""
     @State private var justInstalled = false
+
+    /// The saved choice, unless it's a category that no longer has commands (e.g. after clearing history).
+    private var filter: CommandFilter {
+        if case .category(let category) = storedFilter, !store.categoriesInUse.contains(category) {
+            return .recent
+        }
+        return storedFilter
+    }
+
+    private var filterSelection: Binding<CommandFilter> {
+        Binding(get: { filter }, set: { storedFilter = $0 })
+    }
 
     var body: some View {
         let commands = store.commands(for: filter, matching: query)
@@ -17,7 +29,10 @@ struct ContentView: View {
             header
             SearchField(text: $query)
                 .padding(.horizontal, 16)
-                .padding(.bottom, 12)
+                .padding(.bottom, 10)
+            TerminalPicker()
+                .padding(.horizontal, 20)
+                .padding(.bottom, 10)
 
             if filter == .favorites && isAddingFavorite {
                 addFavoriteField
@@ -67,13 +82,27 @@ struct ContentView: View {
             // A pull-down, not a pop-up: pop-ups line the selected item up with the button,
             // which pushes earlier items off the top of the screen this close to the menu bar.
             Menu {
-                Picker("Show", selection: $filter) {
-                    ForEach(CommandFilter.allCases) { option in
+                Picker("Show", selection: filterSelection) {
+                    ForEach(CommandFilter.fixed) { option in
                         Label(option.title, systemImage: option.systemImage).tag(option)
                     }
                 }
                 .pickerStyle(.inline)
                 .labelsHidden()
+
+                // A tab per platform or tool, added once you've run a command for it.
+                let categories = store.categoriesInUse
+                if !categories.isEmpty {
+                    Divider()
+                    Picker("Categories", selection: filterSelection) {
+                        ForEach(categories) { category in
+                            Label(category.title, systemImage: category.systemImage)
+                                .tag(CommandFilter.category(category))
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                }
             } label: {
                 // Large-title menu, like the title menus in iOS apps.
                 HStack(spacing: 6) {
@@ -102,10 +131,29 @@ struct ContentView: View {
                 .buttonStyle(CircleButtonStyle(tint: Theme.accent, isProminent: true))
                 .help(isAddingFavorite ? "Cancel" : "Add a favorite command")
             }
+
+            newTerminalButton
         }
         .padding(.horizontal, 16)
         .padding(.top, 16)
         .padding(.bottom, 10)
+    }
+
+    /// Opens a new terminal window, or a tab if that's picked in settings. Right-click for either.
+    private var newTerminalButton: some View {
+        let kind = store.newTerminalKind
+        return Button { store.openNewTerminal() } label: {
+            Image(systemName: kind.systemImage)
+        }
+        .buttonStyle(CircleButtonStyle())
+        .help("New \(store.newTerminalName) \(kind.title) (right-click for a \(kind == .window ? "tab" : "window"))")
+        .contextMenu {
+            ForEach(NewTerminalKind.allCases) { option in
+                Button { store.openNewTerminal(option) } label: {
+                    Label("New \(option.title)", systemImage: option.systemImage)
+                }
+            }
+        }
     }
 
     private var addFavoriteField: some View {
@@ -244,7 +292,7 @@ struct AccessibilityBanner: View {
             systemImage: "hand.raised.fill",
             color: .orange,
             title: "Allow pasting into Terminal",
-            message: "Turn on Command Chain in Privacy & Security → Accessibility. Until then, clicking a command only copies it."
+            message: "Turn on Command Chain in Privacy & Security → Accessibility. Until then, clicking a command or ▶ only copies it.\n\nAlready on? A new version can't use the old entry, and switching it off and on isn't enough. Select Command Chain in that list, remove it with −, then turn this setting on again."
         ) {
             Button("Open Settings") { TerminalPaster.openAccessibilitySettings() }
                 .buttonStyle(PillButtonStyle())
@@ -317,10 +365,8 @@ struct EmptyState: View {
     private var message: String {
         switch filter {
         case .favorites: return "Tap the star next to any command, or use + to add one."
-        case .recent, .mostUsed: return "Commands you run in Terminal will show up here."
-        case .android: return "adb, gradlew, emulator and run-android commands appear here."
-        case .ios: return "xcodebuild, xcrun, pod and run-ios commands appear here."
-        case .detox: return "Any command that runs Detox appears here."
+        case .recent, .mostUsed: return "Commands you run in Terminal will show up here. Tabs for iOS, Git, Docker and more appear as you use them."
+        case .category(let category): return "\(category.title) commands you run will show up here."
         }
     }
 }

@@ -91,7 +91,11 @@ public struct CommandHistory: Codable, Equatable {
         stats[command]?.count ?? 0
     }
 
-    public func commands(for filter: CommandFilter) -> [String] {
+    /// `categorize` maps a command to its categories; the app passes a cached version.
+    public func commands(
+        for filter: CommandFilter,
+        categorize: (String) -> [CommandCategory] = CommandCategory.matching
+    ) -> [String] {
         switch filter {
         case .recent:
             return recent
@@ -104,14 +108,23 @@ public struct CommandHistory: Codable, Equatable {
                 }
                 .prefix(Self.mostUsedLimit)
                 .map(\.key)
-        case .android, .ios, .detox:
-            let category = filter.category!
-            // Favorites that match show up even if they've never been run.
-            let known = Set(stats.keys).union(favorites)
-            return known
-                .filter(category.matches)
+        case .category(let category):
+            return knownCommands
+                .filter { categorize($0).contains(category) }
                 .sorted { (stats[$0]?.lastUsed ?? .distantPast) > (stats[$1]?.lastUsed ?? .distantPast) }
         }
+    }
+
+    /// Categories with at least one command, alphabetically. These are the tabs after the fixed three.
+    public func categoriesInUse(categorize: (String) -> [CommandCategory] = CommandCategory.matching) -> [CommandCategory] {
+        var used = Set<CommandCategory>()
+        for command in knownCommands { used.formUnion(categorize(command)) }
+        return used.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    }
+
+    /// Everything with a usage count, plus favorites that may never have been run.
+    private var knownCommands: Set<String> {
+        Set(stats.keys).union(favorites)
     }
 
     static func normalize(_ raw: String) -> String {

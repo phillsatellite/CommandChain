@@ -38,8 +38,15 @@ struct CommandRow: View {
             Button(action: copyOnly) {
                 Image(systemName: copied ? "checkmark" : "doc.on.doc")
             }
-            .buttonStyle(CircleButtonStyle(tint: Theme.accent, isProminent: true))
+            .buttonStyle(CircleButtonStyle(tint: Theme.accent, isProminent: copied))
             .help("Copy to Clipboard")
+
+            Button(action: run) {
+                Image(systemName: "play.fill")
+                    .offset(x: 1) // optically center the triangle
+            }
+            .buttonStyle(CircleButtonStyle(tint: Theme.accent, isFilled: true))
+            .help("Run in \(store.runTargetName ?? "Terminal")")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -55,6 +62,7 @@ struct CommandRow: View {
         .onTapGesture(perform: click)
         .help("\(clickHint)\n\(command)")
         .contextMenu {
+            Button("Run in \(store.runTargetName ?? "Terminal")", action: run)
             Button("Copy", action: copyOnly)
             Button(isFavorite ? "Remove from Favorites" : "Add to Favorites") { store.toggleFavorite(command) }
             Divider()
@@ -66,7 +74,7 @@ struct CommandRow: View {
     private var subtitle: String {
         let count = store.count(of: command)
         let runs = count == 0 ? "Not run yet" : count == 1 ? "Ran once" : "Ran \(count) times"
-        let categories = CommandCategory.allCases.filter { $0.matches(command) }.map(\.title)
+        let categories = store.categories(of: command).map(\.title)
         return ([runs] + categories).joined(separator: " · ")
     }
 
@@ -78,6 +86,11 @@ struct CommandRow: View {
     private func click() {
         // If it pasted, the panel is closing, so there's no need for the checkmark.
         if !store.copyOrPaste(command) { showCopied() }
+    }
+
+    private func run() {
+        // If it ran, the panel is closing, so there's no need for the checkmark.
+        if !store.run(command) { showCopied() }
     }
 
     private func copyOnly() {

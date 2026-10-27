@@ -37,23 +37,26 @@ extension Color {
 struct CircleButtonStyle: ButtonStyle {
     var tint: Color = .primary
     var isProminent = false
+    /// Solid tint with a black glyph, for the row's main action.
+    var isFilled = false
 
     func makeBody(configuration: Configuration) -> some View {
-        CircleButton(configuration: configuration, tint: tint, isProminent: isProminent)
+        CircleButton(configuration: configuration, tint: tint, isProminent: isProminent, isFilled: isFilled)
     }
 
     private struct CircleButton: View {
         let configuration: Configuration
         let tint: Color
         let isProminent: Bool
+        let isFilled: Bool
         @State private var isHovering = false
 
         var body: some View {
             configuration.label
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(isProminent ? tint : Color.secondary)
+                .foregroundStyle(isFilled ? Color.black : isProminent ? tint : Color.secondary)
                 .frame(width: 28, height: 28)
-                .background(Circle().fill(isProminent ? tint.opacity(0.18) : Theme.fill))
+                .background(Circle().fill(isFilled ? tint : isProminent ? tint.opacity(0.18) : Theme.fill))
                 .overlay(Circle().fill(Color.primary.opacity(configuration.isPressed ? 0.15 : isHovering ? 0.07 : 0)))
                 .contentShape(Circle())
                 .onHover { isHovering = $0 }

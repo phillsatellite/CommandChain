@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import CommandChainCore
@@ -42,7 +43,7 @@ import Testing
         for i in 0..<40 { history.record("echo \(i)") }
         #expect(!history.recent.contains("npx detox test"))
         #expect(history.commands(for: .mostUsed).first == "npx detox test")
-        #expect(history.commands(for: .detox) == ["npx detox test"])
+        #expect(history.commands(for: .category(.detox)) == ["npx detox test"])
     }
 
     @Test func favoritesToggle() {
@@ -61,7 +62,7 @@ import Testing
         history.forget("pod install")
         #expect(history.recent.isEmpty)
         #expect(history.favorites == ["pod install"])
-        #expect(history.commands(for: .ios) == ["pod install"])
+        #expect(history.commands(for: .category(.ios)) == ["pod install"])
     }
 
     @Test func moveFavorites() {
@@ -108,10 +109,75 @@ import Testing
     }
 
     @Test(arguments: ["git status", "brew install macos-trash", "ls studios", "cat scenarios.md", "npm run podcast"])
-    func unrelated(_ command: String) {
-        for category in CommandCategory.allCases {
-            #expect(!category.matches(command), "\(category) matched \(command)")
+    func notAPlatform(_ command: String) {
+        for category in [CommandCategory.ios, .android, .detox] {
+            #expect(!category.matches(command), "\(category.title) matched \(command)")
         }
+    }
+
+    @Test(arguments: [
+        ("git push origin main", ["Git"]),
+        ("docker compose up -d", ["Docker"]),
+        ("brew install wget", ["Homebrew"]),
+        ("python3 -m venv .venv", ["Python"]),
+        ("npx expo start", ["Expo", "Node.js"]),
+        ("yarn detox test", ["Detox", "Yarn"]),
+        ("sudo gem install cocoapods", ["Ruby"]),
+        ("bundle exec fastlane ios beta", ["iOS", "Fastlane", "Ruby"]),
+        ("kubectl get pods | grep api", ["Kubernetes"]),
+        ("FOO=1 cargo build --release", ["Rust"]),
+        ("arch -x86_64 pod install", ["iOS"]),
+        ("ls -la", []),
+    ])
+    func detectsToolsAndLanguages(_ command: String, _ expected: [String]) {
+        #expect(CommandCategory.matching(command).map(\.title) == expected)
+    }
+
+    @Test func ignoresProgramNamesInsideQuotes() {
+        #expect(CommandCategory.matching(#"git commit -m "bump docker and python""#).map(\.title) == ["Git"])
+    }
+
+    @Test func categoryIDsAreUnique() {
+        let ids = CommandCategory.all.map(\.id)
+        #expect(Set(ids).count == ids.count)
+    }
+
+    @Test func everyCategoryIconExists() {
+        for category in CommandCategory.all {
+            #expect(NSImage(systemSymbolName: category.systemImage, accessibilityDescription: nil) != nil,
+                    "missing SF Symbol \(category.systemImage) for \(category.title)")
+        }
+    }
+}
+
+@Suite struct FilterTests {
+    @Test func onlyCategoriesWithCommandsBecomeTabs() {
+        var history = CommandHistory()
+        #expect(history.categoriesInUse().isEmpty)
+        history.record("ls")
+        #expect(history.categoriesInUse().isEmpty)
+        history.record("git status")
+        history.record("adb devices")
+        #expect(history.categoriesInUse().map(\.title) == ["Android", "Git"])
+        history.forget("adb devices")
+        #expect(history.categoriesInUse().map(\.title) == ["Git"])
+    }
+
+    @Test func favoriteThatWasNeverRunStillCreatesItsTab() {
+        var history = CommandHistory()
+        history.addFavorite("docker ps")
+        #expect(history.categoriesInUse().map(\.title) == ["Docker"])
+        #expect(history.commands(for: .category(CommandCategory.all.first { $0.id == "docker" }!)) == ["docker ps"])
+    }
+
+    @Test func savedSelectionRoundTripsAndReadsOldValues() {
+        for filter in CommandFilter.fixed + CommandCategory.all.map(CommandFilter.category) {
+            #expect(CommandFilter(rawValue: filter.rawValue) == filter)
+        }
+        // Builds before dynamic tabs saved these.
+        #expect(CommandFilter(rawValue: "ios") == .category(.ios))
+        #expect(CommandFilter(rawValue: "android") == .category(.android))
+        #expect(CommandFilter(rawValue: "nonsense") == nil)
     }
 }
 
