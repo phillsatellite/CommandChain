@@ -20,13 +20,21 @@ final class CommandStore: ObservableObject {
     @Published private(set) var pinnedTarget: TerminalTarget?
     /// Where ▶ sends commands right now, shown above the list. Refreshed while the panel is open.
     @Published private(set) var currentTarget: TerminalTarget?
+    /// A newer version on GitHub, once a check has found one.
+    @Published private(set) var availableUpdate: AppRelease?
+    /// Check GitHub for a new version at launch and once a day.
+    @Published private(set) var checksForUpdates: Bool
+    /// The version whose banner you closed with Not Now.
+    @Published private var dismissedUpdate: String?
 
     let paths: AppPaths
     private let inbox: CommandInbox
     private let integration: ShellIntegration
     private let paster = TerminalPaster()
+    private let updater = UpdateChecker()
     private var categoryCache: [String: [CommandCategory]] = [:]
     private var pollTimer: Timer?
+    private var updateTimer: Timer?
     private var saveWorkItem: DispatchWorkItem?
 
     init(paths: AppPaths = .standard) {
@@ -43,6 +51,8 @@ final class CommandStore: ObservableObject {
         isPaused = FileManager.default.fileExists(atPath: paths.pauseFlag.path)
         pasteOnClick = UserDefaults.standard.bool(forKey: Self.pasteOnClickKey)
         newTerminalKind = UserDefaults.standard.string(forKey: Self.newTerminalKindKey).flatMap(NewTerminalKind.init) ?? .window
+        checksForUpdates = UserDefaults.standard.object(forKey: Self.checksForUpdatesKey) as? Bool ?? true
+        dismissedUpdate = UserDefaults.standard.string(forKey: Self.dismissedUpdateKey)
 
         try? integration.writeHookScript()
         ingest()
@@ -58,6 +68,13 @@ final class CommandStore: ObservableObject {
         }
         RunLoop.main.add(timer, forMode: .common)
         pollTimer = timer
+
+        Task { await checkForUpdates() }
+        let daily = Timer(timeInterval: 24 * 60 * 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in await self?.checkForUpdates() }
+        }
+        RunLoop.main.add(daily, forMode: .common)
+        updateTimer = daily
 
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.flush() }
@@ -224,6 +241,66 @@ final class CommandStore: ObservableObject {
 
     private static let pasteOnClickKey = "pasteOnClick"
     private static let newTerminalKindKey = "newTerminalKind"
+
+    // MARK: Updates
+
+    enum UpdateCheckResult {
+        case available(AppRelease)
+        case upToDate(AppVersion)
+        case failed(String)
+    }
+
+    /// Runs at launch and once a day while automatic checks are on. `userInitiated` (⚙︎ → Check for Updates)
+    /// always runs and leaves showing the result to the caller instead of sending a notification.
+    @discardableResult
+    func checkForUpdates(userInitiated: Bool = false) async -> UpdateCheckResult {
+        guard userInitiated || checksForUpdates else { return .failed("Automatic update checks are off.") }
+        guard let current = UpdateChecker.currentVersion else { return .failed("This build doesn't have a version number.") }
+        do {
+            let latest = try await UpdateChecker.latestRelease()
+            guard latest.isNewer(than: current) else {
+                availableUpdate = nil
+                return .upToDate(current)
+            }
+            availableUpdate = latest
+            // One notification per version, not one a day.
+            if UserDefaults.standard.string(forKey: Self.notifiedUpdateKey) != latest.version.description {
+                UserDefaults.standard.set(latest.version.description, forKey: Self.notifiedUpdateKey)
+                if !userInitiated { updater.notify(about: latest) }
+            }
+            return .available(latest)
+        } catch {
+            return .failed(error.localizedDescription)
+        }
+    }
+
+    /// There's a newer version and you haven't closed its banner.
+    var showsUpdateBanner: Bool {
+        guard let update = availableUpdate else { return false }
+        return update.version.description != dismissedUpdate
+    }
+
+    func dismissUpdate() {
+        dismissedUpdate = availableUpdate?.version.description
+        UserDefaults.standard.set(dismissedUpdate, forKey: Self.dismissedUpdateKey)
+    }
+
+    /// Opens the release page with the DMG in your browser.
+    func openUpdatePage() {
+        guard let url = availableUpdate?.pageURL else { return }
+        TerminalPaster.closePanel()
+        NSWorkspace.shared.open(url)
+    }
+
+    func setChecksForUpdates(_ enabled: Bool) {
+        checksForUpdates = enabled
+        UserDefaults.standard.set(enabled, forKey: Self.checksForUpdatesKey)
+        if enabled { Task { await checkForUpdates() } }
+    }
+
+    private static let checksForUpdatesKey = "checksForUpdates"
+    private static let dismissedUpdateKey = "dismissedUpdateVersion"
+    private static let notifiedUpdateKey = "notifiedUpdateVersion"
 
     func toggleFavorite(_ command: String) { mutate { $0.toggleFavorite(command) } }
     func addFavorite(_ command: String) { mutate { $0.addFavorite(command) } }

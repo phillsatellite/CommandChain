@@ -246,3 +246,44 @@ import Testing
         #expect(try String(contentsOf: zshrc, encoding: .utf8) == upgraded)
     }
 }
+
+@Suite struct UpdateTests {
+    @Test func parsesVersionsAndTags() {
+        #expect(AppVersion("1.2.0")?.parts == [1, 2, 0])
+        #expect(AppVersion("v1.10")?.parts == [1, 10])
+        #expect(AppVersion(" V2 ")?.parts == [2])
+        #expect(AppVersion("1.3.0-beta.1")?.parts == [1, 3, 0])
+        #expect(AppVersion("") == nil)
+        #expect(AppVersion("latest") == nil)
+        #expect(AppVersion("1..2") == nil)
+    }
+
+    @Test func comparesNumberByNumber() throws {
+        let v = { (s: String) in AppVersion(s)! }
+        #expect(v("1.10.0") > v("1.9.9"))
+        #expect(v("1.1") == v("1.1.0"))
+        #expect(v("2.0") > v("1.99"))
+        #expect(!(v("1.1.0") < v("1.1")))
+    }
+
+    @Test func decodesGitHubRelease() throws {
+        let json = """
+        {"tag_name": "v1.2.0", "name": "Command Chain", "draft": false, "prerelease": false,
+         "html_url": "https://github.com/phillsatellite/CommandChain/releases/tag/v1.2.0",
+         "assets": [{"name": "CommandChain-1.2.0.dmg"}]}
+        """
+        let release = try JSONDecoder().decode(AppRelease.self, from: Data(json.utf8))
+        #expect(release.version == AppVersion("1.2.0"))
+        #expect(release.pageURL.absoluteString == "https://github.com/phillsatellite/CommandChain/releases/tag/v1.2.0")
+        #expect(release.isNewer(than: AppVersion("1.1.0")!))
+        #expect(!release.isNewer(than: AppVersion("1.2")!))
+        #expect(!release.isNewer(than: AppVersion("1.3.0")!))
+    }
+
+    @Test func rejectsReleaseWithoutVersionTag() {
+        let json = #"{"tag_name": "nightly", "html_url": "https://github.com/x/y/releases/tag/nightly"}"#
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(AppRelease.self, from: Data(json.utf8))
+        }
+    }
+}

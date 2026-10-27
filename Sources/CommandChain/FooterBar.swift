@@ -34,6 +34,11 @@ struct FooterBar: View {
                     set: { store.setLaunchesAtLogin($0) }
                 ))
 
+                Toggle("Check for Updates Automatically", isOn: Binding(
+                    get: { store.checksForUpdates },
+                    set: { store.setChecksForUpdates($0) }
+                ))
+
                 Divider()
 
                 Button("Import Existing Shell History") { importHistory() }
@@ -50,6 +55,7 @@ struct FooterBar: View {
 
                 Divider()
 
+                Button("Check for Updates…") { checkForUpdates() }
                 Button("About Command Chain") {
                     NSApp.activate(ignoringOtherApps: true)
                     NSApp.orderFrontStandardAboutPanel(nil)
@@ -127,13 +133,34 @@ struct FooterBar: View {
         store.clearHistory()
     }
 
-    private func confirm(title: String, message: String, action: String) -> Bool {
+    private func checkForUpdates() {
+        Task {
+            switch await store.checkForUpdates(userInitiated: true) {
+            case .available(let release):
+                let current = UpdateChecker.currentVersion.map { "You have version \($0). " } ?? ""
+                if confirm(
+                    title: "Command Chain \(release.version) Is Available",
+                    message: "\(current)Download it, quit Command Chain, then drag the new version into Applications and choose Replace. Your history is kept.",
+                    action: "Download",
+                    isDestructive: false
+                ) {
+                    store.openUpdatePage()
+                }
+            case .upToDate(let current):
+                alert(title: "You're Up to Date", message: "Command Chain \(current) is the newest version.")
+            case .failed(let reason):
+                alert(title: "Couldn't Check for Updates", message: reason)
+            }
+        }
+    }
+
+    private func confirm(title: String, message: String, action: String, isDestructive: Bool = true) -> Bool {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = message
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: action).hasDestructiveAction = true
+        alert.alertStyle = isDestructive ? .warning : .informational
+        alert.addButton(withTitle: action).hasDestructiveAction = isDestructive
         alert.addButton(withTitle: "Cancel")
         return alert.runModal() == .alertFirstButtonReturn
     }

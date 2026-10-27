@@ -10,6 +10,7 @@ A macOS menu bar app that remembers the commands you run in Terminal, so you can
 - **Run with ▶**: the play button types the command into your terminal and runs it.
 - **New terminal**: the button at the top right opens a new window in your terminal, or a new tab if you prefer.
 - **Pick a window**: the bar under the search field shows which terminal window ▶ sends to. Click it to send commands to any other open window or tab.
+- **Update alerts**: when a new version is released, you get a notification and a banner with a link to the download page. You can also use ⚙︎ → *Check for Updates…*.
 - **Paste into Terminal** (optional): click a command and it's typed into the app you were just using, ready to run.
 - Native SwiftUI, follows light/dark mode and the system accent color. Lives in the menu bar only, with no Dock icon.
 
@@ -21,6 +22,20 @@ Requires macOS 13 Ventura or later. Universal build (Apple silicon + Intel).
 2. Open it and drag **Command Chain** into **Applications**.
 3. Launch it. A terminal icon appears in the menu bar.
 4. Click it, then click **Enable** to turn on terminal capture. Open a new Terminal window and your commands will start showing up.
+
+## Updating
+
+Command Chain checks GitHub for a new version when it launches and once a day. When one is out, you get a notification and a banner in the panel. You can also check yourself with ⚙︎ → *Check for Updates…*.
+
+You don't need to uninstall the old version first:
+
+1. Download the new `CommandChain-x.y.z.dmg` from the [Releases](https://github.com/phillsatellite/CommandChain/releases) page. The banner's **Download** button opens it for you.
+2. Quit Command Chain using **Quit** at the bottom of the panel. Otherwise the Finder can't replace it.
+3. Open the DMG, drag **Command Chain** into **Applications** and choose **Replace**.
+4. Launch it. If macOS says it can't verify the app, go to **System Settings → Privacy & Security** and click **Open Anyway**.
+5. If you use ▶, paste on click, the new terminal button or the window picker, set up Accessibility access again. In **Privacy & Security → Accessibility**, select Command Chain, remove it with **−**, then allow it the next time Command Chain asks. See [Run and paste into Terminal](#run-and-paste-into-terminal) for why.
+
+Your history, favorites and settings are kept. They're stored in `~/Library/Application Support/CommandChain`, not in the app itself.
 
 > **"Command Chain can't be opened because Apple cannot check it for malicious software"**
 > Release builds are unsigned unless the project has an Apple Developer ID set up (see below).
@@ -39,7 +54,7 @@ Requires macOS 13 Ventura or later. Universal build (Apple silicon + Intel).
 
 The hook appends each command to `~/Library/Application Support/CommandChain/inbox.log`, and the app picks those up every second. The shell never waits on the app, and commands run while the app is closed are imported the next time it launches. If you delete the app, the `[ -f … ]` guard means your shell keeps working.
 
-- **Privacy:** start a command with a space to keep it out of Command Chain. You can also pause capture from the ⚙︎ menu, or right-click a command → *Remove from History*.
+- **Privacy:** start a command with a space to keep it out of Command Chain. You can also pause capture from the ⚙︎ menu, or right-click a command → *Remove from History*. Your commands never leave your Mac. The only network request is a check for new versions on GitHub at launch and once a day, which you can turn off with ⚙︎ → *Check for Updates Automatically*.
 - History is stored locally in `~/Library/Application Support/CommandChain/store.json`. Nothing leaves your Mac.
 - ⚙︎ → **Import Existing Shell History** seeds Most Used and the platform lists from `~/.zsh_history` / `~/.bash_history`.
 - ⚙︎ → **Remove Shell Integration…** removes the block again.

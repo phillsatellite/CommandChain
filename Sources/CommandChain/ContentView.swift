@@ -46,6 +46,9 @@ struct ContentView: View {
                     justInstalled = false
                 }
             }
+            if store.showsUpdateBanner, let update = store.availableUpdate {
+                UpdateBanner(release: update)
+            }
             if store.needsAccessibility {
                 AccessibilityBanner()
             }
@@ -297,6 +300,25 @@ struct AccessibilityBanner: View {
             Button("Open Settings") { TerminalPaster.openAccessibilitySettings() }
                 .buttonStyle(PillButtonStyle())
             Button("Not Now") { store.needsAccessibility = false }
+                .buttonStyle(PillButtonStyle(isProminent: false))
+        }
+    }
+}
+
+struct UpdateBanner: View {
+    @EnvironmentObject private var store: CommandStore
+    let release: AppRelease
+
+    var body: some View {
+        PromptCard(
+            systemImage: "arrow.down.circle.fill",
+            color: .blue,
+            title: "Command Chain \(release.version) is available",
+            message: "Download it, quit Command Chain, then drag the new version into Applications and choose Replace. Your history is kept."
+        ) {
+            Button("Download") { store.openUpdatePage() }
+                .buttonStyle(PillButtonStyle())
+            Button("Not Now") { store.dismissUpdate() }
                 .buttonStyle(PillButtonStyle(isProminent: false))
         }
     }
