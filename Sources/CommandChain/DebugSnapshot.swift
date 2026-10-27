@@ -17,7 +17,7 @@ enum DebugSnapshot {
             .background(Color(nsColor: .windowBackgroundColor))
         let host = NSHostingView(rootView: root)
         host.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
-        host.frame = NSRect(x: 0, y: 0, width: 400, height: 540)
+        host.frame = NSRect(x: 0, y: 0, width: 400, height: 560)
         let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
         window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         window.backgroundColor = dark ? NSColor(white: 0.17, alpha: 1) : NSColor(white: 0.96, alpha: 1)

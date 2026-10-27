@@ -14,6 +14,11 @@ struct FooterBar: View {
                 ))
                 .disabled(!store.shellIntegrationInstalled)
 
+                Toggle("Paste into Terminal on Click", isOn: Binding(
+                    get: { store.pasteOnClick },
+                    set: { store.setPasteOnClick($0) }
+                ))
+
                 Toggle("Launch at Login", isOn: Binding(
                     get: { store.launchesAtLogin },
                     set: { store.setLaunchesAtLogin($0) }
@@ -40,38 +45,44 @@ struct FooterBar: View {
                     NSApp.orderFrontStandardAboutPanel(nil)
                 }
             } label: {
-                Image(systemName: "gearshape")
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 30, height: 30)
+                    .background(Circle().fill(Theme.fill))
+                    .contentShape(Circle())
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
+            .modifier(PlainMenuStyle())
             .fixedSize()
             .help("Settings")
 
             Spacer()
 
-            HStack(spacing: 5) {
+            HStack(spacing: 6) {
                 Circle()
                     .fill(statusColor)
-                    .frame(width: 6, height: 6)
+                    .frame(width: 7, height: 7)
                 Text(statusText)
             }
-            .font(.system(size: 11))
+            .font(.system(size: 12, weight: .medium))
             .foregroundStyle(.secondary)
 
             Spacer()
 
             Button("Quit") { NSApp.terminate(nil) }
-                .buttonStyle(.borderless)
-                .font(.system(size: 12))
+                .buttonStyle(PillButtonStyle(isProminent: false))
                 .keyboardShortcut("q")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .overlay(alignment: .top) {
+            Rectangle().fill(Theme.separator).frame(height: 0.5)
+        }
     }
 
     private var statusColor: Color {
         if !store.shellIntegrationInstalled { return .gray }
-        return store.isPaused ? .orange : .green
+        return store.isPaused ? .orange : Theme.accent
     }
 
     private var statusText: String {

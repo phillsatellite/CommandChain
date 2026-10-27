@@ -7,6 +7,7 @@ A macOS menu bar app that remembers the commands you run in Terminal, so you can
 - **Favorites**: star any command, or add one with **+**. Drag to reorder.
 - **Android / iOS / Detox**: commands detected automatically (`adb`, `./gradlew`, `run-android`… / `xcodebuild`, `xcrun simctl`, `pod`, `run-ios`… / anything with `detox`).
 - Search, a copy button on every row (or click the row), and a right-click menu.
+- **Paste into Terminal** (optional): click a command and it's typed into the app you were just using, ready to run.
 - Native SwiftUI, follows light/dark mode and the system accent color. Lives in the menu bar only, with no Dock icon.
 
 Requires macOS 13 Ventura or later. Universal build (Apple silicon + Intel).
@@ -39,3 +40,11 @@ The hook appends each command to `~/Library/Application Support/CommandChain/inb
 - History is stored locally in `~/Library/Application Support/CommandChain/store.json`. Nothing leaves your Mac.
 - ⚙︎ → **Import Existing Shell History** seeds Most Used and the platform lists from `~/.zsh_history` / `~/.bash_history`.
 - ⚙︎ → **Remove Shell Integration…** removes the block again.
+
+## Paste into Terminal
+
+Turn on ⚙︎ → **Paste into Terminal on Click**. Clicking a command then closes the panel, switches back to the app you were using before you opened Command Chain (Terminal, iTerm, VS Code, …) and pastes the command at the prompt. It doesn't press Return, so you can still edit it before running. The copy button always just copies.
+
+Pasting works by pressing ⌘V for you, which macOS only allows for apps with Accessibility access. The first time you turn it on, macOS asks you to allow Command Chain in **System Settings → Privacy & Security → Accessibility**. Until you do, clicking a command only copies it.
+
+> After installing a new version, macOS may treat it as a different app. If pasting stops working, remove Command Chain from the Accessibility list and add it again.

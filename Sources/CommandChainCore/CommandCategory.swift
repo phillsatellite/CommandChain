@@ -43,6 +43,14 @@ public enum CommandFilter: String, CaseIterable, Identifiable, Codable {
 public enum CommandCategory: CaseIterable {
     case android, ios, detox
 
+    public var title: String {
+        switch self {
+        case .android: return "Android"
+        case .ios: return "iOS"
+        case .detox: return "Detox"
+        }
+    }
+
     public func matches(_ command: String) -> Bool {
         let lower = command.lowercased()
         let programs = Self.programNames(in: lower)
