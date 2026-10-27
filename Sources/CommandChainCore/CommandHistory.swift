@@ -115,11 +115,35 @@ public struct CommandHistory: Codable, Equatable {
         }
     }
 
+    /// `filter`'s commands, narrowed to those in at least one of `tools`. Empty `tools` means no narrowing.
+    public func commands(
+        for filter: CommandFilter,
+        tools: Set<CommandCategory>,
+        categorize: (String) -> [CommandCategory] = CommandCategory.matching
+    ) -> [String] {
+        let all = commands(for: filter, categorize: categorize)
+        guard !tools.isEmpty else { return all }
+        return all.filter { !tools.isDisjoint(with: categorize($0)) }
+    }
+
+    /// The tools `filter`'s commands belong to, alphabetically: what the filter menu offers for that list.
+    /// A category's own tab doesn't offer itself, since every command in it would match.
+    public func tools(in filter: CommandFilter, categorize: (String) -> [CommandCategory] = CommandCategory.matching) -> [CommandCategory] {
+        var found = Set<CommandCategory>()
+        for command in commands(for: filter, categorize: categorize) { found.formUnion(categorize(command)) }
+        if case .category(let own) = filter { found.remove(own) }
+        return Self.sortedByTitle(found)
+    }
+
     /// Categories with at least one command, alphabetically. These are the tabs after the fixed three.
     public func categoriesInUse(categorize: (String) -> [CommandCategory] = CommandCategory.matching) -> [CommandCategory] {
         var used = Set<CommandCategory>()
         for command in knownCommands { used.formUnion(categorize(command)) }
-        return used.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        return Self.sortedByTitle(used)
+    }
+
+    private static func sortedByTitle(_ categories: Set<CommandCategory>) -> [CommandCategory] {
+        categories.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     }
 
     /// Everything with a usage count, plus favorites that may never have been run.

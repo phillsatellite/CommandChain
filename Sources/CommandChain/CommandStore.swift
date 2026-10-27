@@ -87,8 +87,9 @@ final class CommandStore: ObservableObject {
 
     // MARK: Reading
 
-    func commands(for filter: CommandFilter, matching query: String) -> [String] {
-        let all = history.commands(for: filter, categorize: categories(of:))
+    /// `tools` narrows the list to commands for those tools (see the filter button); empty shows everything.
+    func commands(for filter: CommandFilter, matching query: String, tools: Set<CommandCategory> = []) -> [String] {
+        let all = history.commands(for: filter, tools: tools, categorize: categories(of:))
         let query = query.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else { return all }
         return all.filter { $0.localizedCaseInsensitiveContains(query) }
@@ -97,6 +98,11 @@ final class CommandStore: ObservableObject {
     /// Tabs to show after Recent, Most Used and Favorites: only categories you have commands in.
     var categoriesInUse: [CommandCategory] {
         history.categoriesInUse(categorize: categories(of:))
+    }
+
+    /// The tools the filter button offers for a list: the ones its commands use.
+    func tools(in filter: CommandFilter) -> [CommandCategory] {
+        history.tools(in: filter, categorize: categories(of:))
     }
 
     /// Cached, since a command's categories never change and the view asks on every redraw.

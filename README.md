@@ -6,6 +6,7 @@ A macOS menu bar app that remembers the commands you run in Terminal, so you can
 - **Most Used**: your top 50 commands by run count.
 - **Favorites**: star any command, or add one with **+**. Drag to reorder.
 - **Automatic tabs**: besides Recent, Most Used and Favorites, a tab appears for each platform or tool you actually use: iOS, Android, Detox, React Native, Expo, Git, Docker, Node.js, Python, Homebrew and about 25 more. Commands are sorted by the program they run, so `git commit -m "fix docker"` is Git, not Docker.
+- **Filter by tool**: the filter button next to the search field narrows any list to the tools you pick, for example Recent showing only Git and Docker commands.
 - Search, a copy button on every row (or click the row), and a right-click menu.
 - **Run with ▶**: the play button types the command into your terminal and runs it.
 - **New terminal**: the button at the top right opens a new window in your terminal, or a new tab if you prefer.

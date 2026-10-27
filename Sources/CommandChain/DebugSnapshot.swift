@@ -1,9 +1,11 @@
 #if DEBUG
 import AppKit
+import CommandChainCore
 import SwiftUI
 
 /// Debug builds only: `CommandChain --snapshot out.png [light|dark]` renders the popover to a PNG and exits.
-/// Handy for checking layout without clicking the menu bar.
+/// Handy for checking layout without clicking the menu bar. Add `-debugToolFilter git,docker` to render
+/// it with the tool filter on.
 enum DebugSnapshot {
     @MainActor
     static func runIfRequested(store: CommandStore) {
@@ -12,7 +14,8 @@ enum DebugSnapshot {
         let output = URL(fileURLWithPath: args[flag + 1])
         let dark = args.count > flag + 2 && args[flag + 2] == "dark"
 
-        let root = ContentView()
+        let toolIDs = (UserDefaults.standard.string(forKey: "debugToolFilter") ?? "").split(separator: ",").map(String.init)
+        let root = ContentView(toolFilter: Set(CommandCategory.all.filter { toolIDs.contains($0.id) }))
             .environmentObject(store)
             .background(Color(nsColor: .windowBackgroundColor))
         let host = NSHostingView(rootView: root)

@@ -9,6 +9,12 @@ struct ContentView: View {
     @State private var isAddingFavorite = false
     @State private var newFavorite = ""
     @State private var justInstalled = false
+    /// Tools picked with the filter button; the list only shows commands for these. Empty = no filter.
+    @State private var toolFilter: Set<CommandCategory>
+
+    init(toolFilter: Set<CommandCategory> = []) {
+        _toolFilter = State(initialValue: toolFilter)
+    }
 
     /// The saved choice, unless it's a category that no longer has commands (e.g. after clearing history).
     private var filter: CommandFilter {
@@ -18,18 +24,29 @@ struct ContentView: View {
         return storedFilter
     }
 
+    /// Switching lists also clears the tool filter, so it never quietly hides commands somewhere else.
     private var filterSelection: Binding<CommandFilter> {
-        Binding(get: { filter }, set: { storedFilter = $0 })
+        Binding(get: { filter }, set: { storedFilter = $0; toolFilter = [] })
     }
 
     var body: some View {
-        let commands = store.commands(for: filter, matching: query)
+        let tools = store.tools(in: filter)
+        // Only the picked tools that this list still has, e.g. after removing the last Docker command.
+        let activeTools = toolFilter.intersection(tools)
+        let commands = store.commands(for: filter, matching: query, tools: activeTools)
 
         VStack(spacing: 0) {
             header
-            SearchField(text: $query)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 10)
+            HStack(spacing: 8) {
+                SearchField(text: $query)
+                ToolFilterMenu(tools: tools, selection: $toolFilter)
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 10)
+            if !activeTools.isEmpty {
+                ToolFilterChips(tools: tools.filter(activeTools.contains), selection: $toolFilter)
+                    .padding(.bottom, 10)
+            }
             TerminalPicker()
                 .padding(.horizontal, 20)
                 .padding(.bottom, 10)
@@ -60,9 +77,11 @@ struct ContentView: View {
 
             Group {
                 if commands.isEmpty {
-                    EmptyState(filter: filter, isSearching: !query.isEmpty)
+                    EmptyState(filter: filter, isSearching: !query.isEmpty, isFiltered: !activeTools.isEmpty) {
+                        toolFilter = []
+                    }
                 } else {
-                    list(commands)
+                    list(commands, isFiltered: !activeTools.isEmpty)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -107,18 +126,7 @@ struct ContentView: View {
                     .labelsHidden()
                 }
             } label: {
-                // Large-title menu, like the title menus in iOS apps.
-                HStack(spacing: 6) {
-                    Text(filter.title)
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundStyle(.primary)
-                    Image(systemName: "chevron.down.circle.fill")
-                        .font(.system(size: 17))
-                        .symbolRenderingMode(.palette)
-                        // Gray circle with the chevron cut out in the background color.
-                        .foregroundStyle(Theme.background, Color.secondary)
-                }
-                .contentShape(Rectangle())
+                ListMenuLabel(filter: filter)
             }
             .modifier(PlainMenuStyle())
             .fixedSize()
@@ -185,8 +193,9 @@ struct ContentView: View {
         isAddingFavorite = false
     }
 
-    private func list(_ commands: [String]) -> some View {
-        let canReorder = filter == .favorites && query.isEmpty
+    private func list(_ commands: [String], isFiltered: Bool) -> some View {
+        // Dragging only makes sense in the full, unfiltered favorites list.
+        let canReorder = filter == .favorites && query.isEmpty && !isFiltered
         return List {
             ForEach(Array(commands.enumerated()), id: \.element) { index, command in
                 CommandRow(command: command, isFirst: index == 0, isLast: index == commands.count - 1)
@@ -218,6 +227,33 @@ struct PlainMenuStyle: ViewModifier {
 }
 
 // MARK: - Pieces
+
+/// The list picker's button: a raised pill with the list's icon, name and a chevron,
+/// so it reads as something to click rather than a heading.
+struct ListMenuLabel: View {
+    let filter: CommandFilter
+    @State private var isHovering = false
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: filter.systemImage)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+            Text(filter.title)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(.primary)
+            Image(systemName: "chevron.down")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 11)
+        .frame(height: 34)
+        .background(Capsule().fill(isHovering ? Theme.cardHover : Theme.card))
+        .contentShape(Capsule())
+        .onHover { isHovering = $0 }
+    }
+}
 
 struct SearchField: View {
     @Binding var text: String
@@ -356,6 +392,9 @@ struct Notice: View {
 struct EmptyState: View {
     let filter: CommandFilter
     let isSearching: Bool
+    /// The tool filter is on, which only empties a list together with a search.
+    var isFiltered = false
+    var clearFilter: () -> Void = {}
 
     var body: some View {
         VStack(spacing: 10) {
@@ -366,11 +405,16 @@ struct EmptyState: View {
                 .background(Circle().fill(Theme.fill))
             Text(isSearching ? "No Results" : title)
                 .font(.system(size: 17, weight: .semibold))
-            Text(isSearching ? "Try a different search." : message)
+            Text(isSearching ? (isFiltered ? "Try a different search, or clear the tool filter." : "Try a different search.") : message)
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 260)
+            if isFiltered {
+                Button("Clear Filter", action: clearFilter)
+                    .buttonStyle(PillButtonStyle(isProminent: false))
+                    .padding(.top, 4)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.bottom, 24)

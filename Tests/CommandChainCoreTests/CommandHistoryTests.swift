@@ -179,6 +179,35 @@ import Testing
         #expect(CommandFilter(rawValue: "android") == .category(.android))
         #expect(CommandFilter(rawValue: "nonsense") == nil)
     }
+
+    private static func category(_ id: String) -> CommandCategory {
+        CommandCategory.all.first { $0.id == id }!
+    }
+
+    @Test func toolFilterOffersOnlyToolsInTheList() {
+        var history = CommandHistory()
+        history.record("git status")
+        history.record("docker ps")
+        history.record("ls -la")
+        history.record("npx detox test -c ios.sim.debug")
+        #expect(history.tools(in: .recent).map(\.title) == ["Detox", "Docker", "Git", "iOS", "Node.js"])
+        // A tool's own tab offers the other tools its commands use, not itself.
+        #expect(history.tools(in: .category(.ios)).map(\.title) == ["Detox", "Node.js"])
+        #expect(history.tools(in: .favorites).isEmpty)
+    }
+
+    @Test func toolFilterShowsCommandsInAnyPickedTool() {
+        var history = CommandHistory()
+        history.record("git status")
+        history.record("docker ps")
+        history.record("ls -la")
+        history.record("git push")
+        let git = Self.category("git"), docker = Self.category("docker")
+        #expect(history.commands(for: .recent, tools: []) == ["git push", "ls -la", "docker ps", "git status"])
+        #expect(history.commands(for: .recent, tools: [git]) == ["git push", "git status"])
+        #expect(history.commands(for: .recent, tools: [git, docker]) == ["git push", "docker ps", "git status"])
+        #expect(history.commands(for: .mostUsed, tools: [docker]) == ["docker ps"])
+    }
 }
 
 @Suite struct InboxAndImportTests {
