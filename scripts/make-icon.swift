@@ -1,4 +1,4 @@
-// Renders the 1024px app icon: a macOS-style terminal window with a prompt and two chain links.
+// Renders the 1024px app icon: a dark macOS-style squircle with a prompt and two chain links.
 // Usage: swift scripts/make-icon.swift <output.png>
 import AppKit
 
@@ -31,17 +31,6 @@ NSGradient(colors: [
     NSColor(calibratedRed: 0.07, green: 0.08, blue: 0.10, alpha: 1),
 ])!.draw(in: squircle, angle: -90)
 
-// Title bar with traffic lights.
-NSGraphicsContext.saveGraphicsState()
-squircle.addClip()
-NSColor.white.withAlphaComponent(0.07).setFill()
-NSRect(x: 100, y: 790, width: 824, height: 134).fill()
-for (i, color) in [NSColor.systemRed, .systemYellow, .systemGreen].enumerated() {
-    color.setFill()
-    NSBezierPath(ovalIn: NSRect(x: 190 + CGFloat(i) * 62, y: 836, width: 42, height: 42)).fill()
-}
-NSGraphicsContext.restoreGraphicsState()
-
 let green = NSColor(calibratedRed: 0.35, green: 0.85, blue: 0.55, alpha: 1)
 
 // Prompt ">" in the empty top-left corner.
@@ -49,16 +38,16 @@ let chevron = NSBezierPath()
 chevron.lineWidth = 40
 chevron.lineCapStyle = .round
 chevron.lineJoinStyle = .round
-chevron.move(to: NSPoint(x: 205, y: 705))
-chevron.line(to: NSPoint(x: 290, y: 645))
-chevron.line(to: NSPoint(x: 205, y: 585))
+chevron.move(to: NSPoint(x: 215, y: 790))
+chevron.line(to: NSPoint(x: 300, y: 730))
+chevron.line(to: NSPoint(x: 215, y: 670))
 green.setStroke()
 chevron.stroke()
 
 // Two interlocking chain links on a diagonal. Each link is a stroked capsule; the
 // second crossing is redrawn so link A passes over B at one point and under it at the other.
 let ctx = NSGraphicsContext.current!.cgContext
-let chainCenter = CGPoint(x: 545, y: 420)
+let chainCenter = CGPoint(x: 555, y: 455)
 let angle = 35 * CGFloat.pi / 180
 let linkLength: CGFloat = 300, linkHeight: CGFloat = 150, spacing: CGFloat = 200, stroke: CGFloat = 52
 let gapColor = NSColor(calibratedRed: 0.11, green: 0.12, blue: 0.15, alpha: 1).cgColor
