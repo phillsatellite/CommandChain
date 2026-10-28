@@ -2,6 +2,8 @@
 
 A macOS menu bar app that remembers the commands you run in Terminal, so you can find and copy them again in one click.
 
+![Command Chain filtering to Git, running git status in Terminal, switching to the iOS tab, then showing the logo](docs/demo.gif)
+
 - **Recent**: your last 30 commands, newest first. Running a command again moves it to the top instead of adding a duplicate.
 - **Most Used**: your top 50 commands by run count.
 - **Favorites**: star any command, or add one with **+**. Drag to reorder.
